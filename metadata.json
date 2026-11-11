@@ -1,0 +1,8 @@
+{
+  "name": "Maitri 2 Polar Station - #1 Antarctic Smart Microgrid",
+  "description": "World's #1 Polar Research Station digital twin at Maitri II (East Antarctica) featuring Edge AI dispatch, 100% renewability, green hydrogen storage, ISRO satellite telemetry, and DERMS grid resilience.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

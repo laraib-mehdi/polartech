@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+  
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Custom scrollbars for compact SCADA panels */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(11, 22, 36, 0.6);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.25);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 189, 248, 0.5);
+}
+
+/* Glowing text & borders for telemetry */
+.glow-cyan {
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+}
+.glow-green {
+  text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+}
+.glow-amber {
+  text-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+}
+.glow-red {
+  text-shadow: 0 0 10px rgba(248, 113, 113, 0.5);
+}
+
+.radar-scan {
+  background: conic-gradient(from 0deg, rgba(56, 189, 248, 0.3) 0deg, rgba(56, 189, 248, 0) 90deg);
+  animation: radar-sweep 4s linear infinite;
+}
+
+@keyframes radar-sweep {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.pulse-live {
+  animation: pulse-subtle 2s ease-in-out infinite;
+}

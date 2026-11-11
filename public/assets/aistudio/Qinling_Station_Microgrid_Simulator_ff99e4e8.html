@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Qinling Station Microgrid Simulator</title>
+<style>
+:root{--bg:#0b1624;--pn:rgba(10,22,38,.82);--tx:#e6f0fa;--mu:#8aa4bd;--ac:#4fc3f7;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--tx);font:13px system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden}
+canvas#c{display:block;width:100%;height:100%}
+.p{position:absolute;background:var(--pn);border:1px solid #234;border-radius:10px;padding:10px 12px;backdrop-filter:blur(6px)}
+#ctl{left:10px;top:10px;width:220px}#out{right:10px;top:10px;width:210px}
+#ai{left:10px;right:10px;bottom:10px;display:flex;gap:8px;padding:8px;overflow-x:auto;max-height:235px}
+.cd{min-width:255px;flex:1;background:#0d1d31;border:1px solid #234;border-radius:8px;padding:8px;font-size:12px}
+.cd{overflow:auto}.cd h2{font-size:12px;margin:0 0 4px;color:var(--ac)}.bn{color:#a5d6a7;margin-top:4px}
+.hb{display:flex;align-items:center;gap:6px;margin:2px 0;font-size:11px}.hb span:first-child{width:128px;white-space:nowrap}.hb div{flex:1;height:6px;background:#1b3350;border-radius:3px;overflow:hidden}.hb i{display:block;height:100%}
+button{background:#12263d;color:var(--tx);border:1px solid #2c4a6b;border-radius:6px;padding:4px 6px;margin-top:5px;width:100%;cursor:pointer;font-size:11px}button:hover{background:#1b3a5c}
+#inf{left:240px;top:10px;width:240px}#ctl,#out{max-height:calc(100% - 290px);overflow:auto}
+h1{font-size:14px;margin:0 0 2px}small{color:var(--mu)}
+.lr{display:flex;justify-content:space-between;margin-top:8px;color:var(--mu)}input[type=range]:disabled{opacity:.45}label{display:flex;justify-content:space-between;margin-top:8px;color:var(--mu)}
+input[type=range]{width:100%}select{width:100%;background:#12263d;color:var(--tx);border:1px solid #234;border-radius:6px;padding:4px;margin-top:4px}
+.r{display:flex;justify-content:space-between;margin:3px 0}.r b{font-variant-numeric:tabular-nums}
+.bar{height:8px;background:#1b3350;border-radius:4px;overflow:hidden;margin:4px 0 6px}.bar i{display:block;height:100%;background:#66bb6a;width:50%}
+@media(max-width:700px){#ctl{width:160px;font-size:11px}#out{width:170px;font-size:11px}#inf{left:10px;top:auto;bottom:250px;width:200px;font-size:11px}}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="p" id="ctl"><h1>Qinling Station Microgrid</h1><small>Terra Nova Bay, Ross Sea · illustrative model</small>
+<small>Season / sun model</small><select id="sea"><option value="a">Auto (real date &amp; sun position)</option><option value="s">Summer season (midnight sun)</option><option value="w">Winter (polar night)</option></select>
+<div id="src" style="margin:8px 0;font-size:11px"></div><div style="display:flex;gap:6px"><button id="allLive">All live</button><button id="allMan">All manual</button></div>
+<div class="lr"><span>Wind <span id="vw"></span></span><span><input type="checkbox" data-ov="wind"> manual</span></div><input id="wind" type="range" min="0" max="30" step=".5" value="6">
+<div class="lr"><span>Cloud cover <span id="vc"></span></span><span><input type="checkbox" data-ov="cld"> manual</span></div><input id="cld" type="range" min="0" max="100" value="80">
+<div class="lr"><span>Air temp <span id="vt"></span></span><span><input type="checkbox" data-ov="tmp"> manual</span></div><input id="tmp" type="range" min="-40" max="10" step=".1" value="-9">
+<div class="lr"><span>Base load <span id="vl"></span></span><span><input type="checkbox" data-ov="load"> manual</span></div><input id="load" type="range" min="40" max="260" value="110">
+<div class="lr"><span>Sim speed <span id="vs"></span></span><span><input type="checkbox" data-ov="spd"> manual</span></div><input id="spd" type="range" min="0" max="6" step=".25" value="1">
+<label style="margin-top:10px">AI energy management <input type="checkbox" id="aib" checked></label>
+<label>Hydrogen system (H₂) <input type="checkbox" id="h2b" checked></label>
+<label>Show block labels <input type="checkbox" id="lbt" checked></label>
+<button data-f="wt1">Inject fault: wind turbine 2</button><button data-f="dg0">Inject fault: diesel genset 1</button><button data-f="bat">Inject fault: battery</button><button id="crew">Dispatch repair crew (reset)</button>
+<small style="display:block;margin-top:8px">Flow dots: <span style="color:#ffd54f">solar</span> · <span style="color:#81d4fa">wind</span> · <span style="color:#ef5350">diesel</span> · <span style="color:#66bb6a">battery out</span> · <span style="color:#ab47bc">battery in</span> · white = load. AI panel compares live AI against a rule-based shadow run on identical weather.</small>
+<small style="display:block;margin-top:8px">Drag to orbit · wheel to zoom · right-drag to pan</small></div>
+<div class="p" id="out"><h1 id="clk">--</h1>
+<div class="r"><span>☀ PV (150 kWp)</span><b id="pv"></b></div>
+<div class="r"><span>🌀 Wind (3×60 kW)</span><b id="wd"></b></div>
+<div class="r"><span>🛢 Diesel (2×100 kW)</span><b id="dg"></b></div>
+<div class="r"><span>🔋 Battery</span><b id="bt"></b></div>
+<div class="r"><span>🏠 Station load</span><b id="ld"></b></div><div class="r"><span>⚗ Electrolyzer</span><b id="ey"></b></div><div class="r"><span>⚗ Fuel cell</span><b id="fcr"></b></div><div class="r"><span>⚗ H₂ stored</span><b id="h2k"></b></div>
+<div class="r"><span>Curtailed</span><b id="cu"></b></div>
+<div class="r"><span>Battery SOC</span><b id="soc"></b></div><div class="bar"><i id="sb"></i></div>
+<div class="r"><span>Renewable share</span><b id="rs"></b></div>
+<div class="r"><span>Fuel used</span><b id="fu"></b></div>
+<div class="r"><span>Air temperature</span><b id="tp"></b></div><div class="r"><span>Sun elevation</span><b id="el"></b></div>
+<div class="r"><span>Status</span><b id="st"></b></div></div>
+<div class="p" id="inf"></div>
+<div class="p" id="ai">
+<div class="cd"><h2>① AI LOAD FORECASTING</h2><div id="t1"></div><canvas id="fcv" width="420" height="90" style="width:100%"></canvas><small><span style="color:#fff">actual load</span> · <span style="color:#4fc3f7">AI forecast</span> · <span style="color:#66bb6a">PV+wind</span></small></div>
+<div class="cd"><h2>② RENEWABLE INTEGRATION (AI vs rules)</h2><div id="t2"></div></div>
+<div class="cd"><h2>③ FUEL OPTIMISATION (AI vs rules)</h2><div id="t3"></div></div>
+<div class="cd"><h2>④ AI SOURCE SELECTION</h2><div id="t4"></div></div>
+<div class="cd"><h2>⑤ PREDICTIVE MAINTENANCE</h2><div id="t5"></div></div>
+<div class="cd"><h2>⑥ HYDROGEN ENERGY STORAGE</h2><div id="t6"></div></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const R=new THREE.WebGLRenderer({canvas:$('c'),antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,2));
+const S=new THREE.Scene(),C=new THREE.PerspectiveCamera(50,1,.5,1500);
+const sunL=new THREE.DirectionalLight(0xffffff,1.2),amb=new THREE.HemisphereLight(0xbcd8ff,0x8899aa,.5);S.add(sunL,amb);
+const M=(c,o={})=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.8},o));
+function box(w,h,d,x,y,z,mat,p=S){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y+h/2,z);p.add(m);return m}
+// terrain
+const gr=new THREE.Mesh(new THREE.PlaneGeometry(900,420),M(0xeef4fa));gr.rotation.x=-Math.PI/2;S.add(gr);gr.position.z=-130;
+const sea=new THREE.Mesh(new THREE.PlaneGeometry(900,400),M(0x1c4a73,{roughness:.3}));sea.rotation.x=-Math.PI/2;sea.position.set(0,-.2,280);S.add(sea);
+for(let i=0;i<14;i++){const h=40+Math.random()*70,m=new THREE.Mesh(new THREE.ConeGeometry(40+Math.random()*30,h,6),M(i%3?0x9fb3c8:0xdfe9f3));m.position.set(-300+i*48,h/2,-260-Math.random()*40);S.add(m)}
+// station
+const red=M(0xd9442f),wh=M(0xf4f6f8),gy=M(0x56626e);
+box(16,4,6,0,1.2,0,red);box(8,3.2,5,-32,1.2,-1,wh);box(6,3,5,32,1.2,-10,red);
+for(let i=0;i<3;i++)for(let k=-3;k<=3;k+=2)box(.1,1,1.2,-8.05,2.3,k*.3,M(0x223344));
+for(let x of[-7,-3,3,7])for(let z of[-2.5,2.5])box(.4,1.2,.4,x,0,z,gy);
+// switchgear bus
+const bus=box(3,2.4,2,6,0,26,gy);bus.material=M(0x607d8b);const busP=new THREE.Vector3(6,1.5,26);
+// batteries
+const bat=[];for(let i=0;i<2;i++){const b=box(10,3,3,44,0,22+i*7,M(0x2e7d32));bat.push(b);
+ const led=box(.3,.3,3.1,38.9,2,22+i*7,M(0x00ff66,{emissive:0x00ff66}));}
+const batP=new THREE.Vector3(39,2,25);
+// diesel house
+box(9,3.5,5,-34,0,26,M(0xb08a2c));const stacks=[];
+for(let i=0;i<2;i++){const s=box(.7,6,.7,-36+i*3,3.5,26,gy);const gl=new THREE.Mesh(new THREE.SphereGeometry(.8,10,8),M(0xff7043,{emissive:0xff5722,emissiveIntensity:0}));gl.position.set(-36+i*3,10,26);S.add(gl);stacks.push(gl)}
+box(5,2,2.5,-34,0,36,M(0xffb300));const dgP=new THREE.Vector3(-29,1.5,26);
+// PV
+const pvm=M(0x1a2f6b,{metalness:.5,roughness:.3}),pvs=[];
+for(let r=0;r<4;r++)for(let c=0;c<8;c++){const p=new THREE.Mesh(new THREE.BoxGeometry(3.6,.12,2.2),pvm);p.position.set(-40+c*4.8,1.6,-50-r*7.5);p.rotation.x=-.9;S.add(p);box(.2,1.4,.2,-40+c*4.8,0,-50-r*7.5,gy)}
+const pvP=new THREE.Vector3(-22,1.5,-46);
+// wind turbines
+const turb=[];[[46,-40],[68,-34],[90,-28]].forEach(([x,z])=>{const g=new THREE.Group();g.position.set(x,0,z);S.add(g);
+ const t=new THREE.Mesh(new THREE.CylinderGeometry(.6,1,26,12),wh);t.position.y=13;g.add(t);
+ const n=box(2.4,1.8,4,0,25,0,wh,g);const rot=new THREE.Group();rot.position.set(0,26,2.4);g.add(rot);
+ for(let i=0;i<3;i++){const b=new THREE.Mesh(new THREE.BoxGeometry(.7,12,.15),wh);b.position.y=6;const a=new THREE.Group();a.rotation.z=i*2.094;a.add(b);rot.add(a)}
+ g.rotation.y=.4;turb.push(rot)});
+const wdP=new THREE.Vector3(50,2,-20);
+const loadP=new THREE.Vector3(0,3,4);
+// hydrogen hub: electrolyzer -> tanks -> fuel cell
+const elyM=box(12,4,4,-20,0,51,M(0xe3f2fd,{emissive:0x00e5ff,emissiveIntensity:0}));box(12,.4,4.2,-20,4,51,M(0x0288d1));
+const fcM=box(10,4,4,32,0,51,M(0xf1f8e9,{emissive:0x76ff03,emissiveIntensity:0}));box(10,.4,4.2,32,4,51,M(0x43a047));
+const tankFill=[];for(let k=0;k<3;k++){const g=new THREE.Group();g.position.set(6,3,44+k*7);g.rotation.z=Math.PI/2;S.add(g);
+ g.add(new THREE.Mesh(new THREE.CylinderGeometry(2.2,2.2,12,16),M(0x80deea,{transparent:true,opacity:.35})));
+ const f=new THREE.Mesh(new THREE.CylinderGeometry(1.9,1.9,11.6,16),M(0x00e5ff,{emissive:0x00bcd4,emissiveIntensity:.5}));g.add(f);tankFill.push(f);box(10,.8,1,6,0,44+k*7,gy)}
+const elyP=new THREE.Vector3(-14,2,51),fcP=new THREE.Vector3(27,2,51);
+[[elyP,new THREE.Vector3(0,2,51)],[new THREE.Vector3(12,2,51),fcP]].forEach(([a,b])=>S.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([a,b]),new THREE.LineBasicMaterial({color:0x4dd0e1}))));
+// power lines + flow dots
+function line(a,b){const geo=new THREE.BufferGeometry().setFromPoints([a,b]);S.add(new THREE.Line(geo,new THREE.LineBasicMaterial({color:0x37474f})));
+ const dots=[];for(let i=0;i<6;i++){const d=new THREE.Mesh(new THREE.SphereGeometry(.45,8,6),new THREE.MeshBasicMaterial({color:0xffee58}));d.visible=false;S.add(d);dots.push(d)}return{a,b,dots,t:0}}
+const L={pv:line(pvP,busP),wd:line(wdP,busP),dg:line(dgP,busP),bt:line(batP,busP),ld:line(busP,loadP),el:line(busP,elyP),fc:line(fcP,busP)};
+function flow(l,kw,dt,col){const on=Math.abs(kw)>.5;l.t=(l.t+dt*.5*Math.sign(kw)*Math.min(1,.3+Math.abs(kw)/100)+1)%1;
+ l.dots.forEach((d,i)=>{d.visible=on;if(on){d.position.lerpVectors(l.a,l.b,(l.t+i/6+1)%1);d.material.color.set(col)}})}
+// camera orbit
+let th=.6,ph=1.05,rad=215,tgt=new THREE.Vector3(14,3,4);
+function cam(){C.position.set(tgt.x+rad*Math.sin(ph)*Math.sin(th),tgt.y+rad*Math.cos(ph),tgt.z+rad*Math.sin(ph)*Math.cos(th));C.lookAt(tgt)}
+let dr=null;const cv=$('c');
+cv.onpointerdown=e=>{dr={x:e.clientX,y:e.clientY,b:e.button};cv.setPointerCapture(e.pointerId)};
+cv.onpointerup=()=>dr=null;cv.oncontextmenu=e=>e.preventDefault();
+cv.onpointermove=e=>{if(!dr)return;const dx=e.clientX-dr.x,dy=e.clientY-dr.y;dr.x=e.clientX;dr.y=e.clientY;
+ if(dr.b==2){tgt.x-=dx*.1*Math.cos(th);tgt.z+=dx*.1*Math.sin(th)}else{th-=dx*.006;ph=Math.max(.2,Math.min(1.5,ph-dy*.006))}};
+cv.onwheel=e=>{rad=Math.max(25,Math.min(300,rad*(1+e.deltaY*.001)));e.preventDefault()};
+function rs(){R.setSize(innerWidth,innerHeight);C.aspect=innerWidth/innerHeight;C.updateProjectionMatrix()}addEventListener('resize',rs);rs();
+// ===== AI EMS simulation =====
+let CAP=600,curT=-9;const PMAX=200,DGP=100,ELY=100,FCP=80,H2CAP=400,st={h:12};let h2On=true;
+const comps=[['wt0','WT-1 bearings'],['wt1','WT-2 bearings'],['wt2','WT-3 bearings'],['dg0','DG-1 engine'],['dg1','DG-2 engine'],['bat','Battery cells'],['pv','PV inverters'],['ely','Electrolyzer stack'],['fc','Fuel-cell stack']].map(([id,n])=>({id,n,h:100,f:0,b:0,z:0,rate:0,out:0,der:0,rep:0}));
+const cmp=id=>comps.find(c=>c.id==id);
+const mkS=()=>({soc:.6,on:false,fuel:0,hrs:0,starts:0,was:false,curt:0,eDg:0,eL:0,shed:0,res:.15,h2:200,heat:0,tot:0,free:0});
+const SA=mkS(),SB=mkS();
+let aiOn=true,alerts=[],work=0,trips=0,prevented=0,mape=.25,sel='bus',cur={},hist=[];
+const bins=Array(24).fill(90);
+const elAt=h=>{const m=$('sea').value;if(m=='a')return elAstro(h);const x=Math.sin((h-6)/24*2*Math.PI);return m=='s'?22+16*x:-12+9*x};
+const pvAt=(h,cl)=>150*.92*Math.max(0,Math.sin(elAt(h)*Math.PI/180))*(1-.7*cl)*(1+Math.min(.2,.004*Math.max(0,25-curT)));
+const wcurve=v=>v<3||v>25?0:v>=12?60:60*Math.pow((v-3)/9,3);
+const stamp=()=>'['+String(Math.floor(st.h)).padStart(2,'0')+':'+String(Math.floor(st.h%1*60)).padStart(2,'0')+']';
+const rul=c=>c.rate>.05?Math.max(0,(c.h-15)/c.rate).toFixed(0):'>500';
+const OV={wind:0,cld:0,load:0,tmp:0,spd:0};
+// Real-world snapshot (weather service, 74.94°S 163.72°E, Inexpressible Island). Wind & load: estimates (no live feed found).
+const LIVE={fetched:'2026-11-11',cond:'Cloudy',cloud:80,windEst:6,days:[['2026-11-11',19.6,11.2],['2026-11-12',15.6,11.0],['2026-11-13',19.1,13.0],['2026-11-14',18.2,13.2],['2026-11-15',18.3,13.3],['2026-11-16',23.0,17.3],['2026-11-17',26.1,20.2],['2026-11-18',26.6,22.0]]};
+const F2C=f=>(f-32)*5/9,stDate=()=>new Date(Date.now()+11*36e5).toISOString().slice(0,10);
+const realH=()=>{const d=new Date();return(d.getUTCHours()+d.getUTCMinutes()/60+d.getUTCSeconds()/3600+163.72/15)%24};
+const elAstro=h=>{const d=new Date(),doy=Math.floor((d-Date.UTC(d.getUTCFullYear(),0,0))/864e5),dec=-23.44*Math.cos(2*Math.PI*(doy+10)/365)*Math.PI/180,ph=-74.94*Math.PI/180,ha=(h-12)*Math.PI/12;return Math.asin(Math.sin(ph)*Math.sin(dec)+Math.cos(ph)*Math.cos(dec)*Math.cos(ha))*180/Math.PI};
+function tempLive(h){const d=LIVE.days.find(x=>x[0]==stDate())||LIVE.days[0],hi=F2C(d[1]),lo=F2C(d[2]);return(hi+lo)/2+(hi-lo)/2*Math.cos(2*Math.PI*(h-15)/24)}
+const liveVals=()=>({wind:LIVE.windEst,cld:LIVE.cloud,load:110,tmp:tempLive(OV.spd?st.h:realH())});
+function params(){const L=liveVals(),g=k=>OV[k]?+$(k).value:L[k];return{wind:g('wind'),cld:g('cld'),load:g('load'),tmp:g('tmp'),spd:OV.spd?+$('spd').value:1/3600}}
+function sync(){const L=liveVals();[['wind','vw',' m/s',1],['cld','vc','%',0],['load','vl',' kW',0],['tmp','vt',' °C',1]].forEach(([k,id,u,d])=>{const m=OV[k];if(!m)$(k).value=L[k];$(k).disabled=!m;$(id).textContent=(+$(k).value).toFixed(d)+u+(m?' ✎ manual':' ● live')});$('spd').disabled=!OV.spd;$('vs').textContent=OV.spd?$('spd').value+' h/s ✎ manual':'real-time ● live'}
+document.querySelectorAll('[data-ov]').forEach(b=>b.onchange=()=>{OV[b.dataset.ov]=b.checked?1:0;sync()});
+['wind','cld','load','tmp','spd'].forEach(i=>$(i).oninput=sync);
+const setAll=v=>{Object.keys(OV).forEach(k=>OV[k]=v);document.querySelectorAll('[data-ov]').forEach(b=>b.checked=!!v);sync()};
+$('allLive').onclick=()=>setAll(0);$('allMan').onclick=()=>setAll(1);sync();
+
+$('aib').onchange=()=>{aiOn=$('aib').checked;if(!aiOn)comps.forEach(c=>c.der=0)};
+$('h2b').onchange=()=>h2On=$('h2b').checked;
+$('lbt').onchange=()=>Object.values(LB).forEach(o=>o.sp.visible=$('lbt').checked);
+document.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{cmp(b.dataset.f).f=1;alerts.unshift(stamp()+' (you) injected fault: '+cmp(b.dataset.f).n)});
+$('crew').onclick=()=>{comps.forEach(c=>Object.assign(c,{h:100,f:0,b:0,out:0,der:0,rate:0}));alerts.unshift(stamp()+' Repair crew reset all components')};
+// dispatch: ai=false -> fixed rules, ai=true -> forecast-aware source selection
+function disp(X,ai,pv,wd,ld,dh,fc,cp){
+ const dm=Math.max(dh,.002),DG=DGP*cp.dg,P=cp.pb,net=pv+wd-ld,room=(1-X.soc)*CAP/dm;let bt=0,dg=0,cu=0,ely=0,fcw=0,why='';
+ if(!ai){if(X.soc<.3)X.on=true;if(X.soc>.7)X.on=false;
+  if(net>=0){bt=-Math.min(net,P,room);cu=net+bt;why='Rule: surplus charges battery'}
+  else{const n=-net;if(X.on){dg=Math.min(DG,n+60);bt=n-dg;why='Rule: diesel runs until SOC 70%'}
+   else{bt=Math.min(n,P,Math.max(0,(X.soc-.15)*CAP/dm));dg=n-bt;why='Rule: battery until SOC 30%';if(dg>0)X.on=true}}
+ }else{const res=Math.min(.55,.15+fc.d3/CAP*1.2),lim=Math.max(.12,res-(fc.r2>fc.l2?.1:0));X.res=res;
+  if(net>=0){const rm=h2On?Math.max(0,(.85-X.soc)*CAP/dm):room;bt=-Math.min(net,P,rm);cu=net+bt;why='Surplus renewables → charge battery, no diesel';
+   if(h2On&&cu>2&&X.h2<H2CAP){ely=Math.min(cu,ELY*cp.ely,(H2CAP-X.h2)*55/dm);cu-=ely;why='Surplus → battery, rest to electrolyzer (stored as H₂)'}}
+  else{const n=-net;bt=Math.min(n,P,Math.max(0,(X.soc-lim)*CAP/dm));let rest=n-bt;if(h2On&&rest>.5&&X.h2>20){fcw=Math.min(rest,FCP*cp.fc,(X.h2-20)*16.7/dm);rest-=fcw}
+   if(rest>.5){const u=Math.max(1,Math.ceil(rest/DGP));dg=Math.max(rest,X.soc<.85?Math.min(DG,.7*DGP*u):rest);bt=n-dg-fcw;why='Diesel at efficient '+Math.round(Math.min(dg,DG)/u)+' kW/unit, excess charges battery'}
+   else why=fcw>1?'Fuel cell (stored H₂) + battery cover deficit, diesel avoided':bt>1?'Battery + renewables bridge deficit (diesel avoided)':'Renewables cover the load'}}
+ bt=Math.max(bt,-P);dg=Math.max(0,Math.min(dg,DG));
+ const sh=Math.max(0,ld-(pv+wd-cu-ely+dg+bt+fcw));X.soc=Math.max(0,Math.min(1,X.soc-bt*dh/CAP));X.h2=Math.max(0,Math.min(H2CAP,X.h2+ely*dh/55-fcw*dh/16.7));X.heat+=(fcw*.8+ely*.12)*dh;X.tot+=dh;if(dg<.5)X.free+=dh;
+ if(dg>0){const u=Math.max(1,Math.ceil(dg/DGP-1e-6)),f=dg/(DGP*u);X.fuel+=dg*dh*(.25+.5*(f-.75)**2);X.hrs+=dh;if(!X.was)X.starts++}
+ X.was=dg>0;X.curt+=cu*dh;X.eDg+=dg*dh;X.eL+=ld*dh;X.shed+=sh*dh;
+ return{pv,wd,dg,bt,cu,ld,sh,why,ely,fcw};}
+function step(dt){const pr=params(),dh=dt*pr.spd;st.h=OV.spd?(st.h+dh)%24:realH();curT=pr.tmp;CAP=600*(1-.005*Math.max(0,10-pr.tmp));const h=st.h,cl=pr.cld/100,el=elAt(h);
+ const v=pr.wind*(1+.12*Math.sin(h*2.1));
+ const mult=c=>c.out?0:c.der?({wt:.6,dg:.5,ba:.75,pv:.8,el:.7,fc:.7})[c.id.slice(0,2)]:1;
+ const wdU=[0,1,2].map(i=>wcurve(v)*mult(comps[i])),wd=wdU[0]+wdU[1]+wdU[2],pv=pvAt(h,cl)*mult(cmp('pv'));
+ const ld=pr.load*(1+.12*Math.sin((h-8)/24*2*Math.PI*2))*(1+.008*Math.max(0,15-pr.tmp));
+ const hz=[1,2,3].map(k=>{const q=(h+k)%24;return{l:bins[Math.floor(q)],r:pvAt(q,cl)+3*wcurve(v)}});
+ const fc={d3:hz.reduce((a,x)=>a+Math.max(0,x.l-x.r),0),r2:(hz[0].r+hz[1].r)/2,l2:(hz[0].l+hz[1].l)/2,l1:hz[0].l,avg:(hz[0].l+hz[1].l+hz[2].l)/3,pk:Math.max(...hz.map(x=>x.l)),r3:(hz[0].r+hz[1].r+hz[2].r)/3};
+ const b=Math.floor(h),fcNow=bins[b];mape+=Math.min(.5,dh)*(Math.abs(fcNow-ld)/ld-mape);bins[b]+=Math.min(.6,dh*2+.02)*(ld-bins[b]);
+ const cp={dg:mult(cmp('dg0'))+mult(cmp('dg1')),pb:PMAX*mult(cmp('bat')),ely:mult(cmp('ely')),fc:mult(cmp('fc'))};
+ const oA=disp(SA,true,pv,wd,ld,dh,fc,cp),oB=disp(SB,false,pv,wd,ld,dh,fc,cp),o=aiOn?oA:oB;
+ comps.forEach(c=>{const t=c.id.slice(0,2);let w=t=='wt'?.02*v/10:t=='dg'?(o.dg>0?.04:0):t=='ba'?.01+Math.abs(o.bt)/2000:t=='el'?(o.ely>0?.03:0):t=='fc'?(o.fcw>0?.03:0):.005;
+  if(c.f)w+=(c.der&&aiOn?1:3);const ph=c.h;if(!c.out)c.h=Math.max(0,c.h-w*dh);
+  const sig=(100-c.h)*.5+(Math.random()-.5)*3;c.z=(sig-c.b)/2.5;if(c.z<2)c.b+=Math.min(1,dh*.15)*(sig-c.b);
+  if(dh>0)c.rate+=Math.min(1,dh)*.2*((ph-c.h)/dh-c.rate);
+  if(aiOn&&!c.der&&!c.out&&c.z>3){c.der=1;c.rep=6;work++;if(c.f)prevented++;alerts.unshift(stamp()+' AI: anomaly on '+c.n+' (z='+c.z.toFixed(1)+'), RUL≈'+rul(c)+' h → derated, work order #'+work)}
+  if(c.der&&aiOn){c.rep-=dh;if(c.rep<=0){Object.assign(c,{h:100,f:0,der:0,b:0,rate:0});alerts.unshift(stamp()+' Crew completed repair: '+c.n)}}
+  if(!c.out&&c.h<=15){c.out=1;c.der=0;trips++;alerts.unshift(stamp()+' ⚠ UNPLANNED TRIP: '+c.n)}});
+ alerts.length=Math.min(alerts.length,6);cur={o,oA,oB,wdU,v,el,fc,pv,wd,ld,fcNow,pr};return cur}
+// ===== labels, picking & info =====
+const LB={},hits=[];
+const PARTS=[['load','Station Load',[0,10,0],'#ffffff',[76,8,14,0,3.5,-4]],['bus','Smart Switchgear',[6,7,26],'#b0bec5',[4,3,3,6,1.5,26]],['bat','Battery Storage',[44,7,25],'#ce93d8',[12,3.5,14,44,1.5,25]],['dg','Diesel Gensets',[-34,14,26],'#ef9a9a',[10,5,5,-34,2,26]],['pv','Solar PV Array',[-24,8,-60],'#ffd54f',[40,3,28,-24,2,-60]],['wt0','Wind Turbine 1',[46,33,-40],'#81d4fa',[4,28,4,46,14,-40]],['wt1','Wind Turbine 2',[68,33,-34],'#81d4fa',[4,28,4,68,14,-34]],['wt2','Wind Turbine 3',[90,33,-28],'#81d4fa',[4,28,4,90,14,-28]],['ely','Electrolyzer',[-20,8,51],'#4dd0e1',[12,4,5,-20,2,51]],['h2','H₂ Storage Tanks',[6,10,51],'#80deea',[14,6,22,6,3,51]],['fc','Fuel Cell',[32,8,51],'#b2ff59',[10,4,5,32,2,51]]];
+const INFO={load:['Station load','Research labs, living quarters, workshops and heating. Demand follows a daily rhythm that the AI learns to forecast.'],bus:['Smart switchgear + AI EMS','The AC bus where all sources meet. The AI Energy Management System decides every few minutes which sources supply the load.'],bat:['Battery storage · 600 kWh','Stores surplus wind/solar and discharges when renewables fall short, so diesel runs less. AI keeps the reserve sized to the forecast.'],dg:['Diesel gensets · 2×100 kW','Backup power. Fuel is costly to ship to Antarctica, so AI starts them rarely and runs them near their efficient load.'],pv:['Solar PV · 150 kWp','Produces power in proportion to sun elevation and cloud. In polar summer the sun never sets; in winter output is zero.'],wt0:['Wind turbine 1 · 60 kW','Power rises with the cube of wind speed (3 m/s cut-in, 12 m/s rated, 25 m/s cut-out). Vibration is monitored for early faults.'],wt1:['Wind turbine 2 · 60 kW','Same as turbine 1. Try "Inject fault" in the controls to see predictive maintenance react.'],wt2:['Wind turbine 3 · 60 kW','Same as turbine 1.'],ely:['Electrolyzer · 100 kW','Uses surplus wind/solar power to split water into hydrogen (~55 kWh per kg). Turns summer sunshine into fuel for the polar night.'],h2:['Hydrogen storage · 400 kg','Compressed H₂ tanks, about 6.7 MWh of electricity when run through the fuel cell. This is the seasonal store that batteries are too small to be.'],fc:['Fuel cell · 80 kW','Converts stored H₂ back to power (~17 kWh per kg) with no emissions on site. Its waste heat warms the station buildings.']};
+function rrect(x,a,b,w,h,r){x.beginPath();x.roundRect?x.roundRect(a,b,w,h,r):x.rect(a,b,w,h)}
+function drawL(id){const o=LB[id],x=o.c.getContext('2d');x.clearRect(0,0,512,128);x.fillStyle='rgba(8,18,32,.85)';rrect(x,4,8,504,112,18);x.fill();x.strokeStyle=o.col;x.lineWidth=5;x.stroke();x.textAlign='center';x.fillStyle='#fff';x.font='bold 40px system-ui,sans-serif';x.fillText(o.name,256,56);x.fillStyle=o.col;x.font='bold 34px system-ui,sans-serif';x.fillText(o.val||'',256,100);o.t.needsUpdate=true}
+function mkLabel(id,name,p,col){const c=document.createElement('canvas');c.width=512;c.height=128;const t=new THREE.CanvasTexture(c),sp=new THREE.Sprite(new THREE.SpriteMaterial({map:t,depthTest:false,transparent:true}));sp.position.set(...p);sp.scale.set(24,6,1);sp.renderOrder=9;S.add(sp);LB[id]={c,t,sp,name,col,base:col,val:''};drawL(id)}
+PARTS.forEach(([id,n,p,c,h])=>{mkLabel(id,n,p,c);const m=new THREE.Mesh(new THREE.BoxGeometry(h[0],h[1],h[2]),new THREE.MeshBasicMaterial({visible:false}));m.position.set(h[3],h[4],h[5]);m.userData.id=id;S.add(m);hits.push(m)});
+mkLabel('ems','AI Energy Mgmt System',[6,12.5,26],'#69f0ae');
+const rc=new THREE.Raycaster(),mv=new THREE.Vector2();let dn=null;
+cv.addEventListener('pointerdown',e=>dn=[e.clientX,e.clientY]);
+cv.addEventListener('pointerup',e=>{if(!dn||Math.hypot(e.clientX-dn[0],e.clientY-dn[1])>5)return;mv.set(e.clientX/innerWidth*2-1,-e.clientY/innerHeight*2+1);rc.setFromCamera(mv,C);const i=rc.intersectObjects(hits)[0];if(i)sel=i.object.userData.id});
+// ===== UI =====
+const bar=(n,p,c,t='')=>`<div class="hb"><span>${n}</span><div><i style="width:${Math.max(0,Math.min(100,p))}%;background:${c}"></i></div><span style="width:auto">${t}</span></div>`;
+const hc=c=>c.out?'#ef5350':c.der?'#ffa726':c.h<60?'#ffee58':'#66bb6a';
+const cx=$('fcv').getContext('2d');
+function chart(){cx.clearRect(0,0,420,90);cx.strokeStyle='#234';for(let i=0;i<4;i++){cx.beginPath();cx.moveTo(0,i*30);cx.lineTo(420,i*30);cx.stroke()}
+ [['ld','#fff'],['fc','#4fc3f7'],['rn','#66bb6a']].forEach(([k,c])=>{cx.strokeStyle=c;cx.beginPath();hist.forEach((p,i)=>{const X=i/120*420,Y=88-p[k]/300*86;i?cx.lineTo(X,Y):cx.moveTo(X,Y)});cx.stroke()})}
+const X0=()=>aiOn?SA:SB;
+function ui(){const{o,oA,oB,v,fc,pv,wd,ld,fcNow}=cur,f=x=>x.toFixed(0)+' kW',sh=X=>(1-X.eDg/Math.max(1,X.eL))*100;
+ $('clk').textContent=(OV.spd?'Sim clock ':'Station solar time ')+stamp().slice(1,6)+(aiOn?' · AI':' · rules');sync();$('tp').textContent=cur.pr.tmp.toFixed(1)+' °C';
+ const age=Math.round((Date.parse(stDate())-Date.parse(LIVE.fetched))/864e5),nO=Object.values(OV).filter(Boolean).length;
+ $('src').innerHTML=`<b style="color:${nO?'#ffb74d':'#69f0ae'}">● ${nO?nO+' MANUAL OVERRIDE(S) ACTIVE':'LIVE DATA'}</b><br>${cur.pr.tmp.toFixed(1)} °C · ${LIVE.cond} · sun ${cur.el.toFixed(0)}° · wind ${cur.pr.wind.toFixed(1)} m/s<br><span style="color:var(--mu)">Temp &amp; cloud: weather-service snapshot (${LIVE.fetched}). Sun: computed from your real clock/date. Wind &amp; load: estimates, no live station feed — override if you have readings.${age>0?'<br><b style="color:#ffb74d">⚠ Snapshot is '+age+' day(s) old — ask Claude to refresh it.</b>':''}</span>`;
+ $('pv').textContent=f(o.pv);$('wd').textContent=f(o.wd);$('dg').textContent=f(o.dg);$('bt').textContent=(o.bt>1?'Disch ':o.bt<-1?'Chg ':'Idle ')+Math.abs(o.bt).toFixed(0)+' kW';$('ld').textContent=f(o.ld);$('cu').textContent=f(o.cu);$('ey').textContent=f(o.ely||0);$('fcr').textContent=f(o.fcw||0);$('h2k').textContent=X0().h2.toFixed(0)+' kg';
+ const X=aiOn?SA:SB;$('soc').textContent=(X.soc*100).toFixed(1)+'%';$('sb').style.width=X.soc*100+'%';$('sb').style.background=X.soc<.3?'#ef5350':X.soc<.5?'#ffa726':'#66bb6a';
+ $('el').textContent=cur.el.toFixed(1)+'°';$('st').textContent=o.sh>1?'⚠ Load shed':o.dg>0?'Diesel assist':'Renewable';
+ const c1=cmp('wt0');
+ LB.load.val=f(ld);LB.bus.val=aiOn?'AI dispatch':'Rule dispatch';LB.bat.val=(X.soc*100).toFixed(0)+'% · '+(o.bt>1?'+':'')+(-o.bt).toFixed(0)+' kW';LB.dg.val=f(o.dg);LB.pv.val=f(o.pv);
+ for(let i=0;i<3;i++)LB['wt'+i].val=cur.wdU[i].toFixed(0)+' kW · H'+comps[i].h.toFixed(0)+'%';
+ LB.ely.val=f(o.ely||0);LB.fc.val=f(o.fcw||0);LB.h2.val=X.h2.toFixed(0)+' kg · '+(X.h2/H2CAP*100).toFixed(0)+'%';LB.ems.val=aiOn?'ACTIVE':'OFF (rules)';LB.ems.col=aiOn?'#69f0ae':'#ff8a65';
+ const alarm=['wt0','wt1','wt2','dg0','bat','pv'];
+ LB.wt0.col=hc(comps[0])=='#66bb6a'?LB.wt0.base:hc(comps[0]);LB.wt1.col=hc(comps[1])=='#66bb6a'?LB.wt1.base:hc(comps[1]);LB.wt2.col=hc(comps[2])=='#66bb6a'?LB.wt2.base:hc(comps[2]);
+ LB.dg.col=Math.min(...[3,4].map(i=>comps[i].h))<60?hc(comps[3].h<comps[4].h?comps[3]:comps[4]):LB.dg.base;LB.bat.col=cmp('bat').h<60?hc(cmp('bat')):LB.bat.base;
+ Object.keys(LB).forEach(id=>{LB[id].sp.scale.set(id==sel?29:24,id==sel?7:6,1);drawL(id)});
+ // info
+ const I=INFO[sel]||INFO.bus,cc=cmp(sel==='dg'?'dg0':sel);let live='';
+ if(sel=='load')live=`Now ${f(ld)} · forecast next hour ${f(fc.l1)}`;else if(sel=='bus')live=`Decision: ${o.why}`;
+ else if(['ely','h2','fc'].includes(sel))live=sel=='ely'?`${f(o.ely||0)} · makes ${((o.ely||0)/55).toFixed(1)} kg H₂/h`:sel=='fc'?`${f(o.fcw||0)} · uses ${((o.fcw||0)/16.7).toFixed(1)} kg H₂/h`:`${SA.h2.toFixed(0)} of ${H2CAP} kg (${(SA.h2/H2CAP*100).toFixed(0)}%)`;
+ else if(sel=='bat')live=`SOC ${(X.soc*100).toFixed(0)}% · ${f(Math.abs(o.bt))} ${o.bt>0?'discharging':'charging'} · health ${cc.h.toFixed(0)}%`;
+ else if(sel=='dg')live=`${f(o.dg)} output · health DG-1 ${cmp('dg0').h.toFixed(0)}% / DG-2 ${cmp('dg1').h.toFixed(0)}%`;
+ else if(sel=='pv')live=`${f(o.pv)} · sun ${cur.el.toFixed(0)}° · health ${cc.h.toFixed(0)}%`;
+ else live=`${cur.wdU[+sel[2]].toFixed(0)} kW · wind ${v.toFixed(1)} m/s · health ${cc.h.toFixed(0)}% · anomaly z=${cc.z.toFixed(1)}`;
+ $('inf').innerHTML=`<h1>${I[0]}</h1><div style="color:var(--mu);margin:4px 0">${I[1]}</div><b>${live}</b><small style="display:block;margin-top:4px">Click any block in the 3D view to inspect it.</small>`;
+ // analysis bar
+ const sv=SB.fuel-SA.fuel,sp=sv/Math.max(1,SB.fuel)*100;
+ $('t1').innerHTML=`<div>Learns the daily load pattern online (24-h profile, EWMA). Accuracy <b>${(100-mape*100).toFixed(0)}%</b> · next 3 h avg <b>${f(fc.avg)}</b>, peak <b>${f(fc.pk)}</b> · expected renewable deficit <b>${fc.d3.toFixed(0)} kWh</b>.</div><div class="bn">Benefit: sets battery reserve to ${(SA.res*100).toFixed(0)}% (vs fixed 30%) only when a deficit is coming.</div>`;
+ $('t2').innerHTML=`${bar('Renewable share · AI',sh(SA),'#66bb6a',sh(SA).toFixed(0)+'%')}${bar('Renewable share · rules',sh(SB),'#78909c',sh(SB).toFixed(0)+'%')}${bar('Curtailed · AI',SA.curt/20,'#ffa726',SA.curt.toFixed(0)+' kWh')}${bar('Curtailed · rules',SB.curt/20,'#78909c',SB.curt.toFixed(0)+' kWh')}<div>Now: PV+wind <b>${f(pv+wd)}</b> · next 3 h forecast <b>${f(fc.r3)}</b></div><div class="bn">Benefit: <b>${(sh(SA)-sh(SB)).toFixed(1)}</b> pts more renewable energy used; surplus is stored not wasted.</div>`;
+ $('t3').innerHTML=`${bar('Fuel · AI',SA.fuel/Math.max(10,SB.fuel,SA.fuel)*100,'#66bb6a',SA.fuel.toFixed(0)+' L')}${bar('Fuel · rules',SB.fuel/Math.max(10,SB.fuel,SA.fuel)*100,'#ef5350',SB.fuel.toFixed(0)+' L')}<div>Genset starts AI/rules: <b>${SA.starts}/${SB.starts}</b> · run-hours <b>${SA.hrs.toFixed(0)}/${SB.hrs.toFixed(0)}</b> · unserved <b>${SA.shed.toFixed(0)}/${SB.shed.toFixed(0)} kWh</b></div><div class="bn">Benefit: <b>${sv.toFixed(0)} L</b> saved (${sp.toFixed(0)}%) ≈ $${(sv*2.5).toFixed(0)} · ${(sv*2.68/1000).toFixed(2)} t CO₂ avoided (at $2.5/L).</div>`;
+ const mx=Math.max(1,ld);
+ $('t4').innerHTML=`<div style="color:var(--mu)">Merit order: cheapest first</div>${bar('1 ☀ Solar PV · $0',o.pv/mx*100,'#ffd54f',f(o.pv))}${bar('2 🌀 Wind · $0',o.wd/mx*100,'#81d4fa',f(o.wd))}${bar('3 🔋 Battery · ~$0.08',Math.max(0,o.bt)/mx*100,'#ce93d8',f(Math.max(0,o.bt)))}${bar('4 ⚗ H₂ fuel cell · ~$0.2',(o.fcw||0)/mx*100,'#b2ff59',f(o.fcw||0))}${bar('5 🛢 Diesel · ~$0.8',o.dg/mx*100,'#ef5350',f(o.dg))}<div>Reason: <b>${o.why}</b></div><div class="bn">Benefit: diesel is the last resort and, when used, runs at its efficient point.</div>`;
+ $('t5').innerHTML=(aiOn?'':'<div style="color:#ffa726">AI off: no early warnings, faults end in trips.</div>')+comps.map(c=>bar(c.n,c.h,hc(c),c.out?'TRIPPED':c.der?'derated':aiOn&&c.z>1.5?'RUL '+rul(c)+'h':'ok')).join('')+`<div style="color:var(--mu)">${alerts.slice(0,3).join('<br>')||'No alerts. Inject a fault to test.'}</div><div class="bn">Prevented failures: <b>${prevented}</b> · unplanned trips: <b>${trips}</b></div>`;
+ {const hx=SA,aut=hx.h2*16.7/Math.max(1,cur.pr.load*24),fr=hx.free/Math.max(.01,hx.tot)*100,fb=SB.free/Math.max(.01,SB.tot)*100,oa=cur.oA;
+ $('t6').innerHTML=h2On?`${bar('H₂ tank',hx.h2/H2CAP*100,'#4dd0e1',hx.h2.toFixed(0)+' / '+H2CAP+' kg')}<div>Electrolyzer <b>${f(oa.ely||0)}</b> · Fuel cell <b>${f(oa.fcw||0)}</b></div><div>Stored ≈ <b>${(hx.h2*16.7/1000).toFixed(1)} MWh</b> = <b>${aut.toFixed(1)} days</b> of full-station autonomy</div><div>Waste heat recovered: <b>${hx.heat.toFixed(0)} kWh</b> thermal</div>${bar('Diesel-free time · AI+H₂',fr,'#66bb6a',fr.toFixed(0)+'%')}${bar('Diesel-free time · rules',fb,'#78909c',fb.toFixed(0)+'%')}<div class="bn">Benefit: summer surplus becomes fuel for polar night, so diesel starts and shipped fuel drop.</div>`:'<div style="color:#ffa726">Hydrogen system is off. Tick it in the controls.</div>'}
+ hist.push({ld,fc:fcNow,rn:pv+wd});if(hist.length>120)hist.shift();chart()}
+let last=performance.now(),cnt=0,skc=new THREE.Color();
+function loop(now){requestAnimationFrame(loop);const dt=Math.min(.1,(now-last)/1000);last=now;const{o,v,el,wdU}=step(dt);
+ const e=el*Math.PI/180,az=st.h/24*2*Math.PI,ee=Math.max(e,.05);sunL.position.set(Math.sin(az)*200*Math.cos(ee),200*Math.sin(ee),-Math.cos(az)*200);
+ const day=Math.max(0,Math.min(1,(el+8)/20));sunL.intensity=1.3*Math.max(0,Math.min(1,(el+2)/10));amb.intensity=.15+.5*day;
+ skc.setRGB(.05+.5*day,.08+.7*day,.18+.8*day);S.background=skc;S.fog=new THREE.Fog(skc,200,800);
+ turb.forEach((r,i)=>r.rotation.z-=dt*(wdU[i]>.5?.3+v*.12:0));
+ stacks.forEach(g=>g.material.emissiveIntensity=o.dg>0?.6+.4*Math.sin(now*.01):0);
+ const X=aiOn?SA:SB;bat.forEach(b=>b.material.color.setRGB(.2+.5*(1-X.soc),.2+.5*X.soc,.15));
+ flow(L.pv,o.pv,dt,0xffd54f);flow(L.wd,o.wd,dt,0x81d4fa);flow(L.dg,o.dg,dt,0xef5350);flow(L.bt,-o.bt,dt,o.bt>0?0x66bb6a:0xab47bc);flow(L.ld,o.ld,dt,0xffffff);flow(L.el,o.ely||0,dt,0x4dd0e1);flow(L.fc,o.fcw||0,dt,0xb2ff59);
+ elyM.material.emissiveIntensity=(o.ely||0)>1?.6+.3*Math.sin(now*.008):0;fcM.material.emissiveIntensity=(o.fcw||0)>1?.6+.3*Math.sin(now*.008):0;
+ tankFill.forEach(m=>{const q=Math.max(.05,X.h2/H2CAP);m.scale.set(.15+.85*q,1,.15+.85*q);m.material.emissiveIntensity=.2+.6*q});
+ cam();R.render(S,C);if(++cnt%5==0)ui()}
+requestAnimationFrame(loop);
+</script></body></html>
