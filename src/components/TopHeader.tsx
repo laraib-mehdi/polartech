@@ -14,6 +14,8 @@ import {
   CloudSnow,
   Trophy,
   Star,
+  Briefcase,
+  Leaf,
 } from 'lucide-react';
 import { MeteorologicalData, SatelliteTelemetry } from '../types/microgrid';
 
@@ -32,6 +34,8 @@ interface TopHeaderProps {
   onOpenBlockchainModal: () => void;
   onOpenWeatherModal: () => void;
   onOpenRankingsModal?: () => void;
+  onOpenCommercialModal?: () => void;
+  onOpenCarbonModal?: () => void;
   onResetAllFaults: () => void;
   activeFaultCount: number;
   renewableSharePercent: number;
@@ -52,6 +56,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onOpenBlockchainModal,
   onOpenWeatherModal,
   onOpenRankingsModal,
+  onOpenCommercialModal,
+  onOpenCarbonModal,
   onResetAllFaults,
   activeFaultCount,
   renewableSharePercent,
@@ -105,8 +111,12 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
       {/* Center Live Telemetry Badges */}
       <div className="flex items-center flex-wrap gap-2 text-xs font-mono">
-        {/* Renewability Pill */}
-        <div className="bg-slate-900/90 border border-slate-700/80 rounded-lg px-2.5 py-1.5 flex items-center gap-2">
+        {/* Renewability Pill / Carbon Accounting Trigger */}
+        <button
+          onClick={onOpenCarbonModal}
+          className="bg-slate-900/90 hover:bg-slate-800/90 border border-slate-700/80 hover:border-emerald-600/80 rounded-lg px-2.5 py-1.5 flex items-center gap-2 cursor-pointer transition-colors"
+          title="Click to inspect Carbon Offset Accounting, Tree-Planting Equivalencies & Environmental Ledger"
+        >
           <span className="text-[10px] text-slate-400 uppercase">Renewable:</span>
           <span
             className={`font-bold flex items-center gap-1 ${
@@ -120,7 +130,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             <ShieldCheck className="w-3.5 h-3.5" />
             {renewableSharePercent.toFixed(1)}%
           </span>
-        </div>
+        </button>
 
         {/* Weather Quick Pill */}
         <button
@@ -162,6 +172,26 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           <Coins className="w-3.5 h-3.5 text-emerald-400" />
           <span>P2P Grid Ledger</span>
           <span className="w-2 h-2 rounded-full bg-emerald-400 pulse-live" />
+        </button>
+
+        {/* Commercialization & 100% Renewability Blueprint */}
+        <button
+          onClick={onOpenCommercialModal}
+          className="bg-slate-900/90 hover:bg-slate-800/90 border border-sky-800/60 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 text-sky-300 transition-colors cursor-pointer"
+          title="Click to inspect EMS Commercialization, Problems Solved & 100% Renewable Architecture"
+        >
+          <Briefcase className="w-3.5 h-3.5 text-sky-400" />
+          <span className="font-semibold">EMS Blueprint</span>
+        </button>
+
+        {/* Carbon Accounting & Ecological Impact */}
+        <button
+          onClick={onOpenCarbonModal}
+          className="bg-slate-900/90 hover:bg-slate-800/90 border border-emerald-800/60 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 text-emerald-300 transition-colors cursor-pointer"
+          title="Click to view Carbon Offset Accounting, Tree-Planting Equivalencies & Environmental Ledger"
+        >
+          <Leaf className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="font-semibold">CO₂ Offset</span>
         </button>
       </div>
 

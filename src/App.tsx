@@ -39,6 +39,8 @@ import { BlockchainTradingPanel } from './components/BlockchainTradingPanel';
 import { MeteorologicalPanel } from './components/MeteorologicalPanel';
 import { SubsystemInspectorModal } from './components/SubsystemInspectorModal';
 import { RankingsModal } from './components/RankingsModal';
+import { CommercializationModal } from './components/CommercializationModal';
+import { CarbonAccountingModal } from './components/CarbonAccountingModal';
 
 export default function App() {
   // 1. Meteorological & Environmental State (Maitri 2 Station, Schirmacher Oasis, Queen Maud Land)
@@ -332,6 +334,8 @@ export default function App() {
   const [isBlockchainModalOpen, setIsBlockchainModalOpen] = useState(false);
   const [isWeatherModalOpen, setIsWeatherModalOpen] = useState(false);
   const [isRankingsModalOpen, setIsRankingsModalOpen] = useState(false);
+  const [isCommercialModalOpen, setIsCommercialModalOpen] = useState(false);
+  const [isCarbonModalOpen, setIsCarbonModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'dispatch' | 'storage' | 'maintenance'>('dispatch');
 
   // Fast Ref for loop
@@ -674,6 +678,8 @@ export default function App() {
         onOpenBlockchainModal={() => setIsBlockchainModalOpen(true)}
         onOpenWeatherModal={() => setIsWeatherModalOpen(true)}
         onOpenRankingsModal={() => setIsRankingsModalOpen(true)}
+        onOpenCommercialModal={() => setIsCommercialModalOpen(true)}
+        onOpenCarbonModal={() => setIsCarbonModalOpen(true)}
         onResetAllFaults={handleDispatchRepairCrew}
         activeFaultCount={activeFaultCount}
         renewableSharePercent={storage.renewableSharePercent}
@@ -862,6 +868,22 @@ export default function App() {
         isOpen={isRankingsModalOpen}
         onClose={() => setIsRankingsModalOpen(false)}
         currentRenewableShare={storage.renewableSharePercent}
+      />
+
+      {/* Commercialization, Solved Problems & 100% Renewability Architecture Blueprint Modal */}
+      <CommercializationModal
+        isOpen={isCommercialModalOpen}
+        onClose={() => setIsCommercialModalOpen(false)}
+      />
+
+      {/* Carbon Offset Accounting & Ecological Impact Modal */}
+      <CarbonAccountingModal
+        isOpen={isCarbonModalOpen}
+        onClose={() => setIsCarbonModalOpen(false)}
+        cumulativeCurtailedKwh={storage.cumulativeCurtailedKwh}
+        cumulativeFuelLiters={storage.cumulativeFuelLiters}
+        continuousZeroCarbonHours={storage.continuousZeroCarbonHours}
+        renewableSharePercent={storage.renewableSharePercent}
       />
     </div>
   );
